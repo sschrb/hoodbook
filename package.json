@@ -1,0 +1,20 @@
+{
+  "name": "webtech1819-hoodbook-dev",
+  "version": "1.0.0",
+  "description": "HoodBook Webpage with RESTaurant",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@gitlab.tubit.tu-berlin.de:parkl/webtech1819-hoodbook-dev.git"
+  },
+  "author": "WebTech @ TU Berlin, WS18/18",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.18.1",
+    "express": "^4.16.4"
+  }
+}

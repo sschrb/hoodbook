@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>HoodBook: Berlin</title>
+    <link rel="stylesheet" href="styles/1.css">
+    <link rel="stylesheet" href="styles/2.css">
+    <link rel="stylesheet" href="styles/3.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles/4-menu.css">
+    <link rel="stylesheet" href="styles/5-spinner.css">
+    <link rel="stylesheet" href="styles/6-map.css">
+    <link rel="stylesheet" href="styles/7-rest.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.4.0/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js"></script>
+
+
+    <script type="text/javascript">
+        const pageTitle = "HoodBook: Berlin";
+        // REST: Funktion und Konstanten in Global Scope verschoben
+        let pages, main, allNav;
+        function navigateTo(where) { // where must be a key of pages 
+            if (!pages.hasOwnProperty(where)) { // Guard, better alternative: Map
+                where = "intro";
+            }
+            const { template, nav, title } = pages[where];
+
+            // clear content
+            while (main.firstChild) {
+                main.removeChild(main.firstChild);
+            }
+            // append content
+            main.appendChild(document.importNode(template.content, true));
+
+            // fix menu
+            allNav
+                .filter(e => e !== nav)
+                .forEach(n => n.classList.remove("active"));
+            nav.classList.add("active");
+
+            // maybe update title
+            if (title !== undefined) {
+                document.title = `${title} - ${pageTitle}`;
+            }
+            else {
+                document.title = pageTitle;
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", evt => {
+            pages = { // pages and their nav
+                intro: {
+                    template: document.querySelector("#introTemplate"),
+                    nav: document.querySelector("a.nav-intro")
+                },
+                restaurants: {
+                    template: document.querySelector("#restaurantsTemplate"),
+                    nav: document.querySelector("a.nav-restaurants"),
+                    title: "Restaurants"
+                },
+                impressum: {
+                    template: document.querySelector("#impressumTemplate"),
+                    nav: document.querySelector("a.nav-impressum"),
+                    title: "Impressum"
+                }
+            };
+
+
+            main = document.querySelector("main");
+            allNav = Object.values(pages).map(e => e.nav);
+
+            window.addEventListener("hashchange", evt => {
+                const page = evt.newURL.split("#")[1] || "intro";
+                navigateTo(page);
+                evt.preventDefault();
+            });
+
+            // Start with the intro page!
+            navigateTo(location.hash.substring(1) || "intro");
+        });
+
+        function loadRestaurants() {
+            function initMap() {
+                let map = L.map('map').setView([52.53, 13.37], 10);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+
+                return map;
+            }
+
+            function highlightLocation(map, r) {
+                r.marker.openPopup();
+                map.panTo(r.location);
+                [...document.querySelectorAll(".card")].forEach((card) => { card.classList.remove("active") })
+                document.querySelector(".card#" + r.id).classList.add("active")
+            }
+
+
+            function addMapMarker(map, r) {
+                let marker = L.marker(r.location);
+
+                return marker
+                    .addTo(map)
+                    .bindPopup(r.name)
+                    .on('click', () => {
+                        highlightLocation(map, r)
+                    })
+            }
+
+            function addInteraction(map, r) {
+                document.querySelector(".card#" + r.id).addEventListener("click", () => {
+                    highlightLocation(map, r)
+                })
+            }
+
+            // REST: DELETE /restaurants/:id
+            // Lösche Card + Marker bei Erfolg
+            function deleteRestaurant(map, r) {
+                let { id, marker } = r;
+                console.log("Deleting", id);
+                fetch(`/restaurants/${id}`, {
+                    method: "DELETE"
+                }).then(response => {
+                    if (response.status === 204) {
+                        document.getElementById(id).remove();
+                        map.removeLayer(marker)
+                    }
+                });
+            }
+            function renderCard(map, r) {
+                const { id, name, subtitle, img, address, url, tel } = r;
+                const card = document.querySelector("#cardTemplate").content;
+                // .cloneNode(true) geht auch
+
+                card.querySelector(".card").id = id;
+                card.querySelector(".img").src = img;
+                card.querySelector(".img").alt = name;
+                card.querySelector(".subtitle").textContent = subtitle;
+                card.querySelector(".name").textContent = name;
+                card.querySelector(".address").textContent = address;
+                card.querySelector(".url").innerHTML = `<a href="${url}">${url}</a>`;
+                card.querySelector(".tel").innerHTML = `<a href="tel:${tel}">${tel}</a>`;
+                card.querySelector(".delete").innerHTML = `Löschen`;
+
+                document.querySelector(".cards").appendChild(document.importNode(card, true));
+                // REST: Handler zum Löschen des Restaurants
+                document.querySelector(`.card#${id} .delete`).addEventListener("click", () => deleteRestaurant(map, r));
+            }
+
+            const spinner = document.querySelector(".spinner");
+            spinner.classList.add("loading");
+            fetch("/restaurants")
+                .then(response => response.json())
+                .then(restaurants => {
+                    let map = initMap();
+                    for (const r of restaurants) {
+                        // REST: Zuerst marker setzen und map als Parameter zu renderCard hinzugefügt
+                        // --> renderCard hat alle Objekte, um DELETE durchzuführen
+                        r.marker = addMapMarker(map, r);
+                        renderCard(map, r);
+                        addInteraction(map, r);
+                    }
+                    spinner.classList.remove("loading");
+                });
+            spinner.classList.add("loading");
+        }
+    </script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <a href="spa.html">
+                <h2>HoodBook:</h2>
+                <h1>Berlin</h1>
+            </a>
+            <a class="menubutton">MENU</a>
+        </header>
+        <nav class="menu">
+            <ul>
+                <li>
+                    <a href="#intro" class="nav-intro active">Intro</a>
+                </li>
+                <li>
+                    <a href="#restaurants" class="nav-restaurants">Restaurants</a>
+                </li>
+            </ul>
+        </nav>
+        <main></main>
+        <template id="introTemplate">
+            <div class="intro">
+                <h2>Intro</h2>
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Siegessaeule_Aussicht_10-13_img4_Tiergarten.jpg/1280px-Siegessaeule_Aussicht_10-13_img4_Tiergarten.jpg"
+                    alt="Berlin Skyline" class="full">
+
+                <div class="grid">
+                    <div>
+                        <h3>Beschreibung</h3>
+                        <p>Berlin ist die Bundeshauptstadt der Bundesrepublik Deutschland und zugleich eines ihrer
+                            Länder. Die Stadt Berlin ist mit fast 3,6 Millionen Einwohnern die bevölkerungsreichste
+                            und mit 892 Quadratkilometern die flächengrößte Gemeinde Deutschlands. Sie bildet das
+                            Zentrum der Metropolregion Berlin/Brandenburg (6 Millionen Einw.) und der Agglomeration
+                            Berlin (4,5 Millionen Einw.). Der Stadtstaat besteht aus zwölf Bezirken. Neben den
+                            Flüssen Spree und Havel befinden sich im Stadtgebiet kleinere Fließgewässer sowie
+                            zahlreiche Seen und Wälder.</p>
+                        <span>Quelle: </span><a href="https://de.wikipedia.org/wiki/Berlin">Wikipedia</a>
+                    </div>
+
+                    <div>
+                        <h3>Daten</h3>
+                        <table>
+                            <tr>
+                                <th>Land</th>
+                                <td>Deutschland</td>
+                            </tr>
+                            <tr>
+                                <th>Fläche</th>
+                                <td>891,7 km²</td>
+                            </tr>
+                            <tr>
+                                <th>Einwohner</th>
+                                <td>3.711.930</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <h3>Über Berlin</h3>
+                <blockquote>
+                    Vor Gott sind eigentlich alle Menschen Berliner.
+                    <footer>
+                        <cite>-&nbsp;Theodor&nbsp;Fontane</cite>
+                    </footer>
+                </blockquote>
+            </div>
+        </template>
+        <template id="restaurantsTemplate">
+            <div class="restaurants">
+                <h2>Restaurants</h2>
+                <div class="spinner">
+                    <div class="bounce1"></div>
+                    <div class="bounce2"></div>
+                    <div class="bounce3"></div>
+                </div>
+                <div id="map"></div>
+                <div class="cards"></div>
+                <h3>Restaurant hinzufügen</h3>
+
+                <form action="/restaurants" method="">
+
+                </form>
+                <form id="newRestaurant">
+                    <label for="name">Name
+                        <input type="text" name="name" id="name" required>
+                    </label>
+                    <label for="subtitle">Kurzbeschreibung
+                        <input type="text" name="subtitle" id="subtitle" required>
+                    </label>
+                    <label for="address">Adresse
+                        <input type="text" name="address" id="address" required>
+                    </label>
+                    <label for="img">Bild (Link)
+                        <input type="text" name="img" id="img">
+                    </label>
+                    <label for="tel">Telefonnummer
+                        <input type="text" name="tel" id="tel">
+                    </label>
+                    <label for="url">Webseite
+                        <input type="text" name="url" id="url">
+                    </label>
+                </form>
+                <input type="button" value="Abschicken" id="postRestaurant" />
+            </div>
+            <template id="cardTemplate">
+                <div class="card">
+                    <header>
+                        <img class="img" alt="">
+                        <h3>
+                            <div class="subtitle"></div>
+                            <span class="name"></span>
+                        </h3>
+                    </header>
+                    <section>
+                        <div class="address"></div>
+                        <div class="url"></div>
+                        <div class="tel"></div>
+                        <div class="delete"></div>
+                    </section>
+                </div>
+            </template>
+
+            <script type="text/javascript">
+                // REST: Post mittels AJAX
+                document.getElementById("postRestaurant").addEventListener("click", () => {
+                    let form = document.getElementById("newRestaurant")
+                    const fd = new FormData(form);
+                    const reqJson = {};
+                    // kürzer: for (const [key, value] of fd.entries())
+                    for (const entry of fd.entries()) {
+                        const key = entry[0];
+                        const value = entry[1];
+                        reqJson[key] = value;
+                    }
+                    fetch("/restaurants", {
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        },
+                        method: "POST",
+                        body: JSON.stringify(reqJson)
+                    }).then(response => {
+                        if (response.status == 200) return response.json()
+                        else return Promise.reject(response.json())
+                    }).then(success => {
+                        navigateTo("restaurants")
+                    }).catch(err => {
+                        if (err.message) {
+                            alert(`Ein Fehler ist aufgetreten: ${err.message}`)
+                        }
+                    });
+                })
+                loadRestaurants();
+            </script>
+        </template>
+
+        <template id="impressumTemplate">
+            <div class="impressum">
+                <h2>Impressum</h2>
+
+                <address>
+                    <a href="mailto: max.mustermann@muster-host.de">Max Mustermann</a><br>
+                    Musterstraße 42<br>
+                    12342 Berlin<br>
+                    <a href="tel: +49 30 99999999">+49 30 99999999</a>
+                </address>
+
+                <iframe
+                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2427.697407336869!2d13.407230415712338!3d52.52081497981438!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x47a84e1f9014ffeb%3A0xc8fafc484349e4a1!2sBerliner+Fernsehturm!5e0!3m2!1sen!2sde!4v1542624648025"
+                    width="600" height="450" frameborder="0" style="border:0" allowfullscreen></iframe>
+
+                <h2>Kontakt</h2>
+                <form>
+                    <p>
+                        <input type="radio" id="frau" name="anrede" value="frau" checked><label for="frau">Frau</label>
+                        <input type="radio" id="herr" name="anrede" value="herr"><label for="herr">Herr</label>
+                    </p>
+                    <table>
+                        <tr>
+                            <td><label for="name">Name</label></td>
+                            <td><input type="text" name="name" value="" id="name" required></td>
+                        </tr>
+                        <tr>
+                            <td><label for="email">E-Mail</label></td>
+                            <td><input type="email" name="email" value="" id="email" required></td>
+                        </tr>
+                        <tr>
+                            <td><label for="bezirk">Bezirk</label></td>
+                            <td>
+                                <input type="text" name="bezirk" list="bezirke">
+                                <datalist id="bezirke">
+                                    <select>
+                                        <option value="1">Mitte</option>
+                                        <option value="2">Friedrichshain-Kreuzberg</option>
+                                        <option value="3">Pankow</option>
+                                        <option value="4">Charlottenburg-Wilmersdorf</option>
+                                        <option value="5">Spandau</option>
+                                        <option value="6">Steglitz-Zehlendorf</option>
+                                        <option value="7">Tempelhof-Schöneberg</option>
+                                        <option value="8">Neukölln</option>
+                                        <option value="9">Treptow-Köpenick</option>
+                                        <option value="10">Marzahn-Hellersdorf</option>
+                                        <option value="11">Lichtenberg</option>
+                                        <option value="12">Reinickendorf</option>
+                                    </select>
+                                </datalist>
+                                </input>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><label for="tel">Telefon</label></td>
+                            <td><input type="tel" name="tel" id="tel"></td>
+                        </tr>
+                        <tr>
+                            <td><label for="betreff">Betreff</label></td>
+                            <td><input type="text" name="betreff" id="betreff"></td>
+                        </tr>
+                        <tr>
+                            <td colspan="2">
+                                <textarea rows="8" cols="40" required></textarea>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2">
+                                <input type="submit" name="sb">
+                                <input type="reset">
+                            </td>
+                        </tr>
+
+                    </table>
+                </form>
+            </div>
+        </template>
+
+        <footer>
+            <nav>
+                <ul>
+                    <li><a href="#impressum" class="nav-impressum">Kontakt und Impressum</a></li>
+                </ul>
+            </nav>
+        </footer>
+    </div>
+    <script src="js/menu.js" type="text/javascript"></script>
+</body>
+
+</html>

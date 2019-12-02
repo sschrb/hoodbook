@@ -1,0 +1,42 @@
+.card .delete{
+    cursor: pointer;
+}
+
+.card .delete:hover{
+    color: red;
+    text-decoration: underline;
+}
+
+#newRestaurant{
+    display: flex;
+    flex-flow: row wrap;
+}
+
+#newRestaurant > *{
+    margin-left: 1em;
+    margin-bottom: 1em;
+}
+#newRestaurant label{
+    font-weight: bold;
+}
+
+#newRestaurant input{
+    outline: none;
+    background: #fafafa;
+    border: 1px solid #e1e1e1;
+    border-radius: 2px;
+    padding: 0.5em;
+    display: block;
+    width: 350px;
+    transition-duration: 0.5s;
+    transition-property: background-color, border-color;
+}
+
+#newRestaurant input:focus{
+    background-color: #f3f3f3;
+    border-color: #e1e1e1;
+}
+
+#newRestaurant input[type=submit]{
+    margin-right: 3em;
+}
